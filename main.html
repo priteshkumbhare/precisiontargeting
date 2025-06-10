@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circular Error Probable (CEP) Minimization</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background-color: #1e1e1e;
+      color: #ffffff;
+      font-family: 'Lucida Console', Monaco, monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: normal;
+      margin-bottom: 0.5rem;
+    }
+
+    h2 {
+      font-size: 1rem;
+      font-weight: normal;
+      color: #cccccc;
+      margin-bottom: 2rem;
+    }
+
+    .section-heading {
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #dddddd;
+      margin: 1rem 0;
+    }
+
+    .row {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    canvas, .plot-placeholder {
+      background-color: #2a2a2a;
+      border: 1px dashed #555;
+    }
+
+    #canvas_orig_side,
+    #canvas_corr_side {
+      width: 400px;
+      height: 200px;
+    }
+
+    #canvas_orig_front,
+    #canvas_corr_front,
+    .plot-placeholder {
+      width: 200px;
+      height: 200px;
+    }
+
+    .plot-placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #888;
+      font-size: 0.9rem;
+    }
+
+    .input-group {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      margin-top: 2rem;
+    }
+
+    .input-field {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 150px;
+    }
+
+    .input-field label {
+      color: #aaa;
+      margin-bottom: 0.2rem;
+    }
+
+    .input-field input {
+      background-color: #2a2a2a;
+      border: 1px solid #444;
+      color: #fff;
+      padding: 0.3rem 0.5rem;
+      font-family: inherit;
+      width: 100%;
+      text-align: center;
+    }
+
+    .unit {
+      color: #888;
+      font-size: 0.8rem;
+      margin-top: 0.2rem;
+    }
+
+    #simulate-btn {
+      margin-top: 2rem;
+      padding: 0.7rem 2rem;
+      background-color: #28a745;
+      color: white;
+      font-family: 'Lucida Console', Monaco, monospace;
+      font-size: 1rem;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    #simulate-btn:hover {
+      background-color: #218838;
+    }
+
+  </style>
+</head>
+<body>
+  <h1>Circular Error Probable (CEP) Minimization - Precision Targeting</h1>
+
+  <div class="section-heading" id="orig_heading">Without path correction</div>
+  <div class="row">
+    <canvas id="canvas_orig_side"></canvas>
+    <canvas id="canvas_orig_front"></canvas>
+    <div class="plot-placeholder" id="plot_orig_landing"></div>
+  </div>
+
+  <div class="section-heading" id="corr_heading">With path correction</div>
+  <div class="row">
+    <canvas id="canvas_corr_side"></canvas>
+    <canvas id="canvas_corr_front"></canvas>
+    <div class="plot-placeholder" id="plot_corr_landing"></div>
+  </div>
+
+<!-- Second row of inputs -->
+  <div class="input-group">
+    <div class="input-field">
+      <label for="angle">angle</label>
+      <input type="text" id="angle" value="45">
+      <div class="unit">degree</div>
+    </div>
+
+    <div class="input-field">
+      <label for="error_angle">error_angle</label>
+      <input type="text" id="error_angle" value="2">
+      <div class="unit">%</div>
+    </div>
+
+    <div class="input-field">
+      <label for="speed">launch_speed</label>
+      <input type="text" id="speed" value="50">
+      <div class="unit">m/s</div>
+    </div>
+
+    <div class="input-field">
+      <label for="error_speed">error_speed</label>
+      <input type="text" id="error_speed" value="2">
+      <div class="unit">%</div>
+    </div>
+  </div>
+
+  <!-- First row of inputs -->
+  <div class="input-group">
+    <div class="input-field">
+      <label for="target_distance">target_distance</label>
+      <input type="text" id="target_distance" value="247.92">
+      <div class="unit">m</div>
+    </div>
+
+    <div class="input-field">
+      <label for="wind_x">wind_x</label>
+      <input type="text" id="wind_x" value="0.2">
+      <div class="unit">m/s²</div>
+    </div>
+
+    <div class="input-field">
+      <label for="wind_y">wind_y</label>
+      <input type="text" id="wind_y" value="0.1">
+      <div class="unit">m/s²</div>
+    </div>
+
+    <div class="input-field">
+      <label for="drag_coeff">drag_coeff</label>
+      <input type="text" id="drag_coeff" value="0.01">
+      <div class="unit">&nbsp;</div>
+    </div>
+  </div>
+
+  <!-- Third row of inputs -->
+  <div class="input-group">
+    <div class="input-field">
+      <label for="iterations">iterations</label>
+      <input type="text" id="iterations" value="100">
+      <div class="unit">&nbsp;</div>
+    </div>
+
+    <div class="input-field">
+      <label for="cep_accuracy">cep_accuracy</label>
+      <input type="text" id="cep_accuracy" value="0.9">
+      <div class="unit">&nbsp;</div>
+    </div>
+  </div>
+  <button id="simulate-btn">Simulate</button>
+
+</body>
+
+<script>
+  const canvas_orig_side = document.getElementById("canvas_orig_side");
+  const canvas_orig_front = document.getElementById("canvas_orig_front");
+  const ctx_orig_side = canvas_orig_side.getContext("2d");
+  const ctx_orig_front = canvas_orig_front.getContext("2d");
+
+  const canvas_corr_side = document.getElementById("canvas_corr_side");
+  const canvas_corr_front = document.getElementById("canvas_corr_front");
+  const ctx_corr_side = canvas_corr_side.getContext("2d");
+  const ctx_corr_front = canvas_corr_front.getContext("2d");
+
+  const simulateBtn = document.getElementById("simulate-btn");
+
+  const angleInput = document.getElementById("angle");
+  const speedInput = document.getElementById("speed");
+  const windXInput = document.getElementById("wind_x");
+  const dragCoeffInput = document.getElementById("drag_coeff");
+  const targetDistanceInput = document.getElementById("target_distance");
+
+  angleInput.addEventListener("change", updateTargetDistance);
+  speedInput.addEventListener("change", updateTargetDistance);
+  windXInput.addEventListener("change", updateTargetDistance);
+  dragCoeffInput.addEventListener("change", updateTargetDistance);
+  targetDistanceInput.addEventListener("change", findLaunchSpeed);
+
+  function findLaunchSpeed() {
+      const targetDistance = parseFloat(document.getElementById("target_distance").value);
+      const speedInput = document.getElementById("speed")
+      const windX = parseFloat(document.getElementById("wind_x").value);
+      const dragCoeff = parseFloat(document.getElementById("drag_coeff").value);
+      const g = 9.81; // gravity (m/s^2)
+      const tolerance = 0.1;
+      const dt = 0.02; // simulation time step
+      const maxTime = 1000; // max simulation time (seconds)
+      const angle = Math.PI / 4; // 45 degrees in radians
+
+      // Simulation function - calculates range for a given launch speed
+      function simulateRange(launchSpeed) {
+          // Initial velocity components
+          let vx = launchSpeed * Math.cos(angle);
+          let vz = launchSpeed * Math.sin(angle);
+          
+          // Initial position
+          let x = 0;
+          let z = 0;
+          let t = 0;
+          
+          while (z >= 0 && t < maxTime) {
+              // Calculate current speed
+              const speed = Math.sqrt(vx*vx + vz*vz);
+              
+              // Apply drag force
+              if (speed > 0) {
+                  const drag = dragCoeff * speed;
+                  vx -= (drag * vx / speed) * dt;
+                  vz -= (drag * vz / speed) * dt;
+              }
+              
+              // Apply wind and gravity
+              vx += windX * dt;
+              vz -= g * dt;
+              
+              // Update position
+              x += vx * dt;
+              z += vz * dt;
+              t += dt;
+          }
+          
+          return x; // final horizontal distance
+      }
+
+      // Find speed bounds using exponential search
+      let lowSpeed = 0;
+      let highSpeed = 10; // initial upper bound
+      let highRange = simulateRange(highSpeed);
+      
+      // Increase upper bound until we exceed target distance
+      while (highRange < targetDistance) {
+          lowSpeed = highSpeed;
+          highSpeed *= 2;
+          highRange = simulateRange(highSpeed);
+          
+          // Safety check for unrealistically high speeds
+          if (highSpeed > 10000) {
+              throw new Error("Cannot achieve target distance - drag too high or wind too strong");
+          }
+      }
+
+      // Bisection search to find precise launch speed
+      let midSpeed;
+      for (let i = 0; i < 50; i++) { // max 50 iterations
+          midSpeed = (lowSpeed + highSpeed) / 2;
+          const midRange = simulateRange(midSpeed);
+          
+          // Check if we're within tolerance
+          if (Math.abs(midRange - targetDistance) < tolerance) {
+              speedInput.value = midSpeed.toFixed(2);
+          }
+          
+          // Adjust search bounds
+          if (midRange < targetDistance) {
+              lowSpeed = midSpeed;
+          } else {
+              highSpeed = midSpeed;
+          }
+      }
+      
+      speedInput.value = midSpeed.toFixed(2); // best estimate after 50 iterations
+  }
+
+  function updateTargetDistance() {
+    const angleDeg = parseFloat(document.getElementById("angle").value);
+    const speed = parseFloat(document.getElementById("speed").value);
+    const windX = parseFloat(document.getElementById("wind_x").value);
+    const dragCoeff = parseFloat(document.getElementById("drag_coeff").value);
+
+    if (isNaN(angleDeg) || isNaN(speed) || isNaN(windX) || isNaN(dragCoeff)) return;
+
+    const range = calculateRange(angleDeg, speed, windX, dragCoeff);
+    targetDistanceInput.value = range.toFixed(2);
+  }
+
+  function calculateRange(initAngle, initSpeed, windX, dragCoeff) {
+      const g = 9.81;      // Gravity (m/s^2)
+      const dt = 0.02;     // Time step (seconds)
+      const maxSteps = 1000000; // Safety limit to prevent infinite loops
+      
+      // Initial velocity components
+      initAngle = initAngle * (Math.PI / 180);
+      let vx = initSpeed * Math.cos(initAngle);
+      let vz = initSpeed * Math.sin(initAngle);
+      
+      // Initial position (launch from origin)
+      let x = 0;
+      let z = 0;
+     
+       for (let step = 0; step < maxSteps; step++) {
+          // Calculate current speed
+          const speed = Math.sqrt(vx * vx + vz * vz);
+          
+          // Apply drag force (opposes velocity direction)
+          if (speed > 0) {
+              const dragFactor = dragCoeff * dt;
+              vx -= dragFactor * vx;
+              vz -= dragFactor * vz;
+          }
+          
+          // Apply wind acceleration and gravity
+          vx += windX * dt;
+          vz -= g * dt;
+          
+          // Update position
+          x += vx * dt;
+          z += vz * dt;
+          
+          // Check for landing (projectile hits ground)
+          if (z < 0) {
+              return x; // Return horizontal distance when landing
+          }
+      }
+      
+      return x; // Fallback return (shouldn't reach here for normal projectiles)
+  }
+
+  simulateBtn.addEventListener("click", () => {
+    // Clear canvases
+    ctx_orig_side.clearRect(0, 0, canvas_orig_side.width, canvas_orig_side.height);
+    ctx_orig_front.clearRect(0, 0, canvas_orig_front.width, canvas_orig_front.height);
+    ctx_corr_side.clearRect(0, 0, canvas_corr_side.width, canvas_corr_side.height);
+    ctx_corr_front.clearRect(0, 0, canvas_corr_front.width, canvas_corr_front.height);
+
+    ctx_orig_side.fillStyle = "#ffffff";
+    ctx_orig_side.font = "12px 'Lucida Console', Monaco, monospace";
+    ctx_orig_side.fillText("Side View", 10, 15);
+    ctx_orig_front.fillStyle = "#ffffff";
+    ctx_orig_front.font = "12px 'Lucida Console', Monaco, monospace";
+    ctx_orig_front.fillText("Front View", 10, 15);
+    ctx_corr_side.fillStyle = "#ffffff";
+    ctx_corr_side.font = "12px 'Lucida Console', Monaco, monospace";
+    ctx_corr_side.fillText("Side View", 10, 15);
+    ctx_corr_front.fillStyle = "#ffffff";
+    ctx_corr_front.font = "12px 'Lucida Console', Monaco, monospace";
+    ctx_corr_front.fillText("Front View", 10, 15);
+
+    const origHeading = document.getElementById("orig_heading");
+    const corrHeading = document.getElementById("corr_heading");
+    origHeading.textContent = `Without path correction`;
+    corrHeading.textContent = `With path correction`;
+    const layout = {
+      plot_bgcolor: "#2a2a2a",
+      paper_bgcolor: "#2a2a2a",
+      font: { color: "#ffffff" },
+      margin: { l: 20, r: 10, t: 10, b: 20 }, // reduce all sides
+      xaxis: {
+        color: "#ffffff",
+        tickfont: { color: "#666" },
+        scaleanchor: "y",
+        showgrid: true, // enable gridlines
+        gridcolor: "#444", // gridline color matching dark theme
+        zeroline: true,
+        zerolinecolor: "#888"
+      },
+      yaxis: {
+        color: "#ffffff",
+        tickfont: { color: "#666" },
+        showgrid: true,
+        gridcolor: "#444",
+        zeroline: true,
+        zerolinecolor: "#888"
+      }
+    };
+    const layout_corr = JSON.parse(JSON.stringify(layout));
+    Plotly.newPlot('plot_orig_landing', [], layout);
+    Plotly.newPlot('plot_corr_landing', [], layout_corr);
+
+    // Read inputs
+    const angleDeg = parseFloat(document.getElementById("angle").value);
+    const errorAngleDeg = parseFloat(document.getElementById("error_angle").value);
+    const speed = parseFloat(document.getElementById("speed").value);
+    const errorSpeed = parseFloat(document.getElementById("error_speed").value);
+    const targetDistance = parseFloat(document.getElementById("target_distance").value);
+    const windX = parseFloat(document.getElementById("wind_x").value);
+    const windY = parseFloat(document.getElementById("wind_y").value);
+    const dragCoeff = parseFloat(document.getElementById("drag_coeff").value);
+    const iterations = parseFloat(document.getElementById("iterations").value);
+    const cepAccuracy = parseFloat(document.getElementById("cep_accuracy").value);
+
+    let scale = 1;
+    const angle = angleDeg * (Math.PI / 180);
+    const g = 9.81;
+    const dt = 0.02;
+    const init_x = 20;
+    const init_y = scale * canvas_orig_front.width / 2;
+    const init_z = 0;
+    const time_step = 1; // every 1 second, path correction happens
+    let plot_offset_x = NaN;
+    let plot_offset_y = NaN;
+    let plot_offset_x_corr = NaN;
+    let plot_offset_y_corr = NaN;
+    const allLandingPoints = [];
+    const allLandingPointsCorr = [];
+
+    // Draw single main simulation first
+    runProjectileSimulation(speed, 0, angle, "#ff0000", true, () => {
+      // After main sim, run iterations trials with ± speed error
+      for (let i = 0; i < iterations; i++) {
+        const actualSpeed = generateErroredParam(speed, errorSpeed);
+        const crossSpeed = generateErroredParam(speed, errorSpeed) - speed;
+        const actualAngle = generateErroredParam(angle, errorAngleDeg);
+        runProjectileSimulation(actualSpeed, crossSpeed, actualAngle, "rgba(0,255,0,0.05)", false);
+      }
+    });
+
+    function runProjectileSimulation(initSpeed, crossSpeed, initAngle, color, isMain, onComplete) {
+      let vx = initSpeed * Math.cos(initAngle);
+      let vy = crossSpeed;
+      let vz = initSpeed * Math.sin(initAngle);
+      let vx_corr = initSpeed * Math.cos(initAngle);
+      let vy_corr = crossSpeed;
+      let vz_corr = initSpeed * Math.sin(initAngle);
+
+      let t = 0;
+      let x = init_x;
+      let y = init_y;
+      let z = init_z;
+      let x_corr = init_x;
+      let y_corr = init_y;
+      let z_corr = init_z;
+      let finishFlag = false;
+      let finishFlagCorr = false;
+
+      const points = [];
+      function drawStep() {
+        t += dt;
+
+        const v = Math.sqrt(vx * vx + vy * vy + vz * vz);
+        const v_corr = Math.sqrt(vx_corr * vx_corr + vy_corr * vy_corr + vz_corr * vz_corr);
+
+        const drag = dragCoeff * v;
+        const drag_corr = dragCoeff * v_corr;
+        
+        if (v !== 0) {
+          vx -= (drag * vx / v) * dt;
+          vy -= (drag * vy / v) * dt;
+          vz -= (drag * vz / v) * dt;
+        }
+        if (v_corr !== 0) {
+          vx_corr -= (drag_corr * vx_corr / v_corr) * dt;
+          vy_corr -= (drag_corr * vy_corr / v_corr) * dt;
+          vz_corr -= (drag_corr * vz_corr / v_corr) * dt;
+        }
+
+        vx += windX * dt;
+        vy += windY * dt;
+        vz -= g * dt;
+        vx_corr += windX * dt;
+        vy_corr += windY * dt;
+        vz_corr -= g * dt;
+
+        function computeVelocityAdjustment(
+            x, y, z, vx, vy, vz, 
+            x_target, y_target, 
+            windX, windY, dragCoeff, 
+            tolerance = 0.1, maxIterations = 100, learningRate = 0.1
+        ) {
+            const g = 9.81;
+            const dt = 0.02;
+            
+            // Simulate projectile until landing (z=0)
+            function simulateLanding(vx_start, vy_start, vz_start) {
+                let simX = x, simY = y, simZ = z;
+                let simVx = vx_start, simVy = vy_start, simVz = vz_start;
+                let steps = 0;
+                
+                while (simZ > 0 && steps < 10000) {
+                    const speed = Math.sqrt(simVx**2 + simVy**2 + simVz**2);
+                    if (speed > 0) {
+                        const drag = dragCoeff * speed;
+                        simVx -= (drag * simVx / speed) * dt;
+                        simVy -= (drag * simVy / speed) * dt;
+                        simVz -= (drag * simVz / speed) * dt;
+                    }
+                    
+                    simVx += windX * dt;
+                    simVy += windY * dt;
+                    simVz -= g * dt;
+                    
+                    simX += simVx * dt;
+                    simY += simVy * dt;
+                    simZ += simVz * dt;
+                    steps++;
+                }
+                return { x: simX, y: simY };
+            }
+
+            // Calculate landing error (distance to target)
+            function computeError(landingX, landingY) {
+                return Math.sqrt((landingX - x_target)**2 + (landingY - y_target)**2);
+            }
+
+            // Gradient descent to find optimal velocity adjustment
+            let delta_vx = 0, delta_vy = 0, delta_vz = 0;
+            let currentLanding = simulateLanding(vx, vy, vz);
+            let currentError = computeError(currentLanding.x, currentLanding.y);
+
+            for (let iter = 0; iter < maxIterations && currentError > tolerance; iter++) {
+                // Perturb each velocity component to compute gradients
+                const perturbations = [
+                    { axis: 'x', dv: 0.01 },
+                    { axis: 'y', dv: 0.01 },
+                    { axis: 'z', dv: 0.01 }
+                ];
+                
+                const gradients = { x: 0, y: 0, z: 0 };
+                
+                for (const p of perturbations) {
+                    let perturbedVx = vx + (p.axis === 'x' ? delta_vx + p.dv : delta_vx);
+                    let perturbedVy = vy + (p.axis === 'y' ? delta_vy + p.dv : delta_vy);
+                    let perturbedVz = vz + (p.axis === 'z' ? delta_vz + p.dv : delta_vz);
+                    
+                    const perturbedLanding = simulateLanding(perturbedVx, perturbedVy, perturbedVz);
+                    const perturbedError = computeError(perturbedLanding.x, perturbedLanding.y);
+                    const errorDiff = perturbedError - currentError;
+                    
+                    gradients[p.axis] = errorDiff / p.dv;
+                }
+                
+                // Update adjustments using gradients
+                delta_vx -= learningRate * gradients.x;
+                delta_vy -= learningRate * gradients.y;
+                delta_vz -= learningRate * gradients.z;
+                
+                // Re-simulate with new adjustments
+                currentLanding = simulateLanding(vx + delta_vx, vy + delta_vy, vz + delta_vz);
+                currentError = computeError(currentLanding.x, currentLanding.y);
+            }
+
+            return { delta_vx, delta_vy, delta_vz };
+        }
+
+        if (t % time_step < 0.0001) {
+          let velAdj = computeVelocityAdjustment(x_corr, y_corr, z_corr, vx_corr, vy_corr, vz_corr, plot_offset_x + init_x, plot_offset_y + init_y, windX, windY, dragCoeff)
+          vx_corr += velAdj['delta_vx'];
+          vy_corr += velAdj['delta_vy'];
+          vz_corr += velAdj['delta_vz'];
+        }
+
+        x += vx * dt;
+        y += vy * dt;
+        z += vz * dt;
+        x_corr += vx_corr * dt;
+        y_corr += vy_corr * dt;
+        z_corr += vz_corr * dt;
+
+        if (z < 0) z = 0;
+        if (z_corr < 0) z_corr = 0;
+
+        points.push({ x, y, z, x_corr, y_corr, z_corr });
+
+        if(t > 0.1) {
+          drawPath(points, color);
+          if(z <= init_z && !finishFlag) {
+            if (isNaN(plot_offset_x)) {
+              plot_offset_x = x - init_x;
+            }
+            if (isNaN(plot_offset_y)) {
+              plot_offset_y = y - init_y;
+            }
+            let plot_point_x = x - init_x;// - plot_offset_x;
+            let plot_point_y = y - init_y;// - plot_offset_y;
+            allLandingPoints.push({ x: plot_point_x, y: plot_point_y });
+            Plotly.addTraces('plot_orig_landing', {
+              x: [plot_point_x],
+              y: [plot_point_y],
+              mode: 'markers',
+              type: 'scatter',
+              marker: { color: isMain ? '#ff0000' : 'rgba(0,255,0,0.4)', size: isMain ? 8 : 4 },
+              showlegend: false
+            });
+
+            if (allLandingPoints.length >= (iterations + 1)) {
+            // Calculate distances from origin
+              const distances = allLandingPoints.map(p => Math.sqrt((p.x - plot_offset_x) ** 2 + (p.y - plot_offset_y) ** 2));
+
+              // Sort distances
+              distances.sort((a, b) => a - b);
+
+              // Get radius that includes 50% of points
+              const cepRadius = distances[Math.floor(distances.length * cepAccuracy)];
+              const sectionHeading = document.getElementById("orig_heading");
+              sectionHeading.textContent = `Without path correction: CEP Radius = ${cepRadius.toFixed(2)} metres (Accuracy = ${cepAccuracy})`;
+
+              Plotly.relayout('plot_orig_landing', {
+                shapes: [
+                  {
+                    type: 'circle',
+                    xref: 'x',
+                    yref: 'y',
+                    x0: -cepRadius + plot_offset_x,
+                    y0: -cepRadius + plot_offset_y,
+                    x1: cepRadius + plot_offset_x,
+                    y1: cepRadius + plot_offset_y,
+                    line: {
+                      color: 'grey',
+                      width: 2
+                    }
+                  }
+                ]
+              });
+            }
+
+            finishFlag = true;
+          }
+
+          if(z_corr <= init_z && !finishFlagCorr) {
+            if (isNaN(plot_offset_x_corr)) {
+              plot_offset_x_corr = x_corr - init_x;
+            }
+            if (isNaN(plot_offset_y_corr)) {
+              plot_offset_y_corr = y_corr - init_y;
+            }
+            let plot_point_x_corr = x_corr - init_x;// - plot_offset_x;
+            let plot_point_y_corr = y_corr - init_y;// - plot_offset_y;
+            allLandingPointsCorr.push({ x_corr: plot_point_x_corr, y_corr: plot_point_y_corr });
+            Plotly.addTraces('plot_corr_landing', {
+              x: [plot_point_x_corr],
+              y: [plot_point_y_corr],
+              mode: 'markers',
+              type: 'scatter',
+              marker: { color: isMain ? '#ff0000' : 'rgba(0,255,0,0.4)', size: isMain ? 8 : 4 },
+              showlegend: false
+            });
+
+            if (allLandingPointsCorr.length >= (iterations + 1)) {
+            // Calculate distances from origin
+              const distances = allLandingPointsCorr.map(p => Math.sqrt((p.x_corr - plot_offset_x_corr) ** 2 + (p.y_corr - plot_offset_y_corr) ** 2));
+
+              // Sort distances
+              distances.sort((a, b) => a - b);
+
+              // Get radius that includes 50% of points
+              const cepRadiusCorr = distances[Math.floor(distances.length * cepAccuracy)];
+              const sectionHeading = document.getElementById("corr_heading");
+              sectionHeading.textContent = `With path correction: CEP Radius = ${cepRadiusCorr.toFixed(2)} metres (Accuracy = ${cepAccuracy})`;
+
+              Plotly.relayout('plot_corr_landing', {
+                shapes: [
+                  {
+                    type: 'circle',
+                    xref: 'x',
+                    yref: 'y',
+                    x0: -cepRadiusCorr + plot_offset_x_corr,
+                    y0: -cepRadiusCorr + plot_offset_y_corr,
+                    x1: cepRadiusCorr + plot_offset_x_corr,
+                    y1: cepRadiusCorr + plot_offset_y_corr,
+                    line: {
+                      color: 'grey',
+                      width: 2
+                    }
+                  }
+                ]
+              });
+            }
+
+            finishFlagCorr = true;
+          }
+        }
+        
+        if (finishFlag && finishFlagCorr) {
+          if (onComplete) onComplete();
+          return;
+        }
+
+        if (((x * scale > canvas_orig_side.width || y * scale > canvas_orig_front.width || z * scale > canvas_orig_side.height) && z > 0) || ((x_corr * scale > canvas_corr_side.width || y_corr * scale > canvas_corr_front.width || z_corr * scale > canvas_corr_side.height) && z_corr > 0)) {
+          ctx_orig_side.clearRect(0, 0, canvas_orig_side.width, canvas_orig_side.height);
+          ctx_orig_front.clearRect(0, 0, canvas_orig_front.width, canvas_orig_front.height);
+          ctx_corr_side.clearRect(0, 0, canvas_corr_side.width, canvas_corr_side.height);
+          ctx_corr_front.clearRect(0, 0, canvas_corr_front.width, canvas_corr_front.height);
+          scale /= 2;
+        }
+
+        requestAnimationFrame(drawStep);
+      }
+
+      drawStep();
+
+    }
+
+    function drawPath(points, strokeStyle) {
+      // SIDE VIEW
+      ctx_orig_side.beginPath();
+      ctx_orig_side.strokeStyle = strokeStyle;
+      ctx_orig_side.moveTo(points[0].x * scale, canvas_orig_side.height - points[0].z * scale);
+      for (let p of points) {
+        if (p.z > 0) {
+          ctx_orig_side.lineTo(p.x * scale, canvas_orig_side.height - p.z * scale);
+        }
+      }
+      ctx_orig_side.stroke();
+
+      // FRONT VIEW
+      ctx_orig_front.beginPath();
+      ctx_orig_front.strokeStyle = strokeStyle;
+      ctx_orig_front.moveTo(points[0].y * scale, canvas_orig_front.height - points[0].z * scale);
+      for (let p of points) {
+        if (p.z > 0) {
+          ctx_orig_front.lineTo(p.y * scale, canvas_orig_front.height - p.z * scale);
+        }
+      }
+      ctx_orig_front.stroke();
+      
+      // SIDE VIEW
+      ctx_corr_side.beginPath();
+      ctx_corr_side.strokeStyle = strokeStyle;
+      ctx_corr_side.moveTo(points[0].x_corr * scale, canvas_corr_side.height - points[0].z_corr * scale);
+      for (let p of points) {
+        if (p.z_corr > 0) {
+          ctx_corr_side.lineTo(p.x_corr * scale, canvas_corr_side.height - p.z_corr * scale);
+        }
+      }
+      ctx_corr_side.stroke();
+
+      // FRONT VIEW
+      ctx_corr_front.beginPath();
+      ctx_corr_front.strokeStyle = strokeStyle;
+      ctx_corr_front.moveTo(points[0].y_corr * scale, canvas_corr_front.height - points[0].z_corr * scale);
+      for (let p of points) {
+        if (p.z_corr > 0) {
+          ctx_corr_front.lineTo(p.y_corr * scale, canvas_corr_front.height - p.z_corr * scale);
+        }
+      }
+      ctx_corr_front.stroke();
+    }
+
+    function generateErroredParam(param, errorPercent) {
+      // Calculate absolute error range
+      const errorMargin = (errorPercent / 100) * param;
+      const minSpeed = param - errorMargin;
+      const maxSpeed = param + errorMargin;
+
+      // Use Box-Muller transform to generate a normally distributed value
+      function gaussianRandom(mean, stdDev) {
+        let u = 0, v = 0;
+        while (u === 0) u = Math.random(); // Convert [0,1) to (0,1)
+        while (v === 0) v = Math.random();
+        const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+        return z * stdDev + mean;
+      }
+
+      const stdDev = errorMargin / 3; // 99.7% values within ±error% (3σ rule)
+      let value;
+      do {
+        value = gaussianRandom(param, stdDev);
+      } while (value < minSpeed || value > maxSpeed); // Clip to range
+
+      return value;
+    }
+  });
+
+</script>
+
+
+</html>
